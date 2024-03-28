@@ -1,4 +1,3 @@
-
 require('./config')
 const config = require('./config.js');
 const { default: gssConnect, useMultiFileAuthState, DisconnectReason, fetchLatestBaileysVersion, generateForwardMessageContent, prepareWAMessageMedia, generateWAMessageFromContent, generateMessageID, downloadContentFromMessage, makeInMemoryStore, jidDecode, proto, getAggregateVotesInPollMessage } = require("@whiskeysockets/baileys")
@@ -10,6 +9,7 @@ const chalk = require('chalk')
 const FileType = require('file-type')
 const path = require('path')
 const _ = require('lodash')
+const moment = require('moment-timezone')
 const axios = require('axios')
 const PhoneNumber = require('awesome-phonenumber')
 const { imageToWebp, videoToWebp, writeExifImg, writeExifVid } = require('./lib/exif')
@@ -87,7 +87,7 @@ async function startgss() {
 
 
    gss.ev.on('messages.upsert', async chatUpdate => {
-        //console.log(JSON.stringify(chatUpdate, undefined, 2))
+       // console.log(JSON.stringify(chatUpdate, undefined, 2))
         try {
         mek = chatUpdate.messages[0]
         if (!mek.message) return
@@ -105,81 +105,27 @@ async function startgss() {
 
 
 
-
-
-//antidelete 
-async function handleDeletedMessage(message) {
+async function deleteUpdate(gss, m, store) {
     try {
-        const { fromMe, id, participant } = message;
-        if (fromMe) {
-            return;
-        }
+        const { fromMe, id, participant, remoteJid } = m;
+        if (fromMe) return;
 
-        let msg = this.serializeM(this.loadMessage(id));
+        let msg = await store.loadMessage(remoteJid, id);
         if (!msg) {
-            return;
-        }
-
-        let chat = global.db.data.chats[msg.chat] || {};
-
-        // Check if the message contains media
-        let mediaUrl = '';
-        let caption = 'Status Deleted'; // Default caption for deleted status
-
-        // Check if it's an image
-        if (msg.imageMessage) {
-            mediaUrl = await gss.downloadAndSaveMediaMessage(msg.imageMessage);
-            caption = msg.imageMessage.caption || caption; // Use image caption if available
-        }
-
-        // Check if it's a video
-        if (msg.videoMessage) {
-            mediaUrl = await gss.downloadAndSaveMediaMessage(msg.videoMessage);
-            caption = msg.videoMessage.caption || caption; // Use video caption if available
-        }
-
-        const deletedMessageNotification = `
-        ≡ Deleted Status 
-        ┌─⊷  𝘼𝙉𝙏𝙄 𝘿𝙀𝙇𝙀𝙏𝙀𝘿 𝙎𝙏𝘼𝙏𝙐𝙎 
-        ▢ *Number :* @${participant.split`@`[0]} 
-        └─────────────
-        `.trim();
-
-        await gss.sendMessage(gss.user.id, {
-            text: deletedMessageNotification,
-            media: { url: mediaUrl, caption: caption }
-        });
-    } catch (e) {
-        console.error(e);
-    }
-}
-
-
-async function deleteUpdate(message) {
-    try {
-        const {
-            fromMe,
-            id,
-            participant
-        } = message
-        if (fromMe)
-            return
-        let msg = this.serializeM(this.loadMessage(id))
-        if (!msg)
-            return
-        let chats = global.db.data.chats[msg.chats] || {}
-       
-            await this.reply(gss.user.id, `
+            return await m.reply(gss.user.jid, `
             ≡ deleted a message 
             ┌─⊷  𝘼𝙉𝙏𝙄 𝘿𝙀𝙇𝙀𝙏𝙀 
             ▢ *Number :* @${participant.split`@`[0]} 
             └─────────────
-            `.trim(), msg, {
-                        mentions: [participant]
-                    })
-        this.copyNForward(gss.user.id, msg, false).catch(e => console.log(e, msg))
+            `.trim(), msg, { mentions: [participant] });
+        }
+
+        gss.copyNForward(gss.user.jid, msg, false).catch(e => console.log(e, msg));
+
+        // Send reply after message deletion
+        await m.reply(gss.user.jid, "Message successfully deleted.");
     } catch (e) {
-        console.error(e)
+        console.error(e);
     }
 }
 
@@ -232,6 +178,72 @@ gss.ev.on('messages.update', async chatUpdate => {
     }
 });
 
+
+ 
+
+/*WELCOME LEFT*/
+gss.ev.on('group-participants.update', async (anu) => {
+    if (global.welcome) {
+        console.log(anu);
+        try {
+            let metadata = await gss.groupMetadata(anu.id);
+            let participants = anu.participants;
+
+            for (let num of participants) {
+                try {
+                    ppuser = await gss.profilePictureUrl(num, 'image');
+                } catch (err) {
+                    ppuser = 'https://cdn.pixabay.com/photo/2015/10/05/22/37/blank-profile-picture-973460_960_720.png?q=60';
+                }
+
+                // Welcome message
+                if (anu.action == 'add') {
+                    const userName = num.split('@')[0];
+                    const joinTime = moment.tz('Asia/Kolkata').format('HH:mm:ss');
+                    const joinDate = moment.tz('Asia/Kolkata').format('DD/MM/YYYY');
+                    const membersCount = metadata.participants.length;
+
+                    const welcomeMessage = `> Hello @${userName}! Welcome to *${metadata.subject}*.\n> You are the ${membersCount}th member.\n> Joined at: ${joinTime} on ${joinDate}`;
+
+                    gss.sendMessage(anu.id, {
+                        text: welcomeMessage,
+                        contextInfo: {
+                            externalAdReply: {
+                                showAdAttribution: false,
+                                title: userName,
+                                sourceUrl: ppuser,
+                                body: `${metadata.subject}`
+                            }
+                        }
+                    });
+                }
+                // Left message
+                else if (anu.action == 'remove') {
+                    const userName = num.split('@')[0];
+                    const leaveTime = moment.tz('Asia/Kolkata').format('HH:mm:ss');
+                    const leaveDate = moment.tz('Asia/Kolkata').format('DD/MM/YYYY');
+                    const membersCount = metadata.participants.length;
+
+                    const leftMessage = `> Goodbye @${userName} from ${metadata.subject}.\n> We are now ${membersCount} in the group.\n> Left at: ${leaveTime} on ${leaveDate}`;
+
+                    gss.sendMessage(anu.id, {
+                        text: leftMessage,
+                        contextInfo: {
+                            externalAdReply: {
+                                showAdAttribution: false,
+                                title: userName,
+                                sourceUrl: ppuser,
+                                body: `${metadata.subject}`
+                            }
+                        }
+                    });
+                }
+            }
+        } catch (err) {
+            console.log(err);
+        }
+    }
+});
 
 
 	
