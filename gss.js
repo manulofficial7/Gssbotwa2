@@ -5,8 +5,9 @@ const fonts = require('./lib/font.js');
 const menufont = require('./lib/menufont.js');
 const DB = require('./lib/scraper')
 const uploadImage = require('./lib/uploadImage.js');
-const { rentfromxeon, conns } = require('./RentBot')
+const { gssrentbot, conns } = require('./RentBot')
 const languages = require('./lib/language');
+const got = require('got');
 const more = String.fromCharCode(8206)
 const readmore = more.repeat(4001)
 const availableStyles = Object.keys(fonts);
@@ -67,11 +68,10 @@ let nttoxic = JSON.parse(fs.readFileSync('./database/antitoxic.json'))
 let premium = JSON.parse(fs.readFileSync('./src/data/premium.json'))
 
 // Initialize default values
-let AUTO_READ = false;
-let ALWAYS_ONLINE = false;
-let TYPING_ENABLED = false;
-let PUBLIC_MODE = false; // added
-let ANTICALL_MODE = false; // added
+let autoread = false;
+let available = false;
+let autoTyping = false;
+let autoRecord = false;
 
 const mongoDBUrl = process.env.MONGO_DB || 'mongodb+srv://mohsin:mohsin@cluster0.iauaztt.mongodb.net/?retryWrites=true&w=majority';
 
@@ -99,12 +99,11 @@ module.exports = gss = async (gss, m, chatUpdate, store) => {
     try {
         var body = (m.mtype === 'conversation') ? m.message.conversation : (m.mtype == 'imageMessage') ? m.message.imageMessage.caption : (m.mtype == 'videoMessage') ? m.message.videoMessage.caption : (m.mtype == 'extendedTextMessage') ? m.message.extendedTextMessage.text : (m.mtype == 'buttonsResponseMessage') ? m.message.buttonsResponseMessage.selectedButtonId : (m.mtype == 'listResponseMessage') ? m.message.listResponseMessage.singleSelectReply.selectedRowId : (m.mtype == 'templateButtonReplyMessage') ? m.message.templateButtonReplyMessage.selectedId : (m.mtype === 'messageContextInfo') ? (m.message.buttonsResponseMessage?.selectedButtonId || m.message.listResponseMessage?.singleSelectReply.selectedRowId || m.text) : ''
         var budy = (typeof m.text == 'string' ? m.text : '')
-        var prefix = prefa ? /^[°•π÷×¶∆£¢€¥®™+✓_=|~!?@#$%^&.©^]/gi.test(body) ? body.match(/^[°•π÷×¶∆£¢€¥®™+✓_=|~!?@#$%^&.©^]/gi)[0] : "" : prefa ?? global.prefix
-        global.prefix = prefix
-        const isCmd = body.startsWith(prefix)
-        const command = body.replace(prefix, '').trim().split(/ +/).shift().toLowerCase()
-        var args = body.trim().split(/ +/).slice(1)
-        args = args.concat(['','','','','',''])
+    const prefix = /^[\\/!#.]/gi.test(body) ? body.match(/^[\\/!#.]/gi) : "/";
+    const isCmd = body.startsWith(prefix)
+    const notCmd = body.startsWith('')
+    const command = isCmd ? body.slice(1).trim().split(' ')[0].toLowerCase() : ''
+    const args = body.trim().split(/ +/).slice(1)
 
 
 
@@ -221,12 +220,6 @@ function formatUploadDate(uploadDate) {
   return formattedDate.toLocaleDateString(undefined, options);
 }
 
-
-async function generateProfilePicture(media) {
-    return {
-        img: 'placeholder_image_data'
-    };
-}
 	
 	
 async function getIPInfo() {
@@ -424,17 +417,6 @@ try {
 
 
 
-const autoBlockEnabledValue = process.env.AUTO_BLOCK_ENABLED || 'false';
-global.autoBlockEnabled = autoBlockEnabledValue === 'true';
-
-const typemenu = process.env.TYPEMENU || global.typemenu;
-const onlygroup = process.env.ONLYGROUP || global.onlygroup;
-const onlypc = process.env.ONLYPC || global.onlypc;
-
-let TYPING_ENABLED = process.env.AUTO_TYPING === 'true';
-let AUTO_READ_ENABLED = process.env.AUTO_READ === 'true';
-let ALWAYS_ONLINE = process.env.ALWAYS_ONLINE === 'true';
-
 	try {
             let isNumber = x => typeof x === 'number' && !isNaN(x)
             let limitUser = isPremium ? global.limitawal.premium : global.limitawal.free
@@ -501,16 +483,6 @@ if (!('autobio' in setting)) setting.autobio = false
             scheduled: true,
             timezone: "Asia/kolkata"
         })
-        
-
-        
-       
-   
-    if (mek.key.id.startsWith('BAE5') && !m.fromMe) {
-        await gss.sendMessage(m.chat, { text: 'User detected as a bot and has been flagged.'}, { quoted: m });
-    }
-
-
 
 
 /*antiviewonce*/
@@ -522,7 +494,6 @@ if (!('autobio' in setting)) setting.autobio = false
         val.message = msg
         await gss.sendMessage(m.chat, { forward: val }, { quoted: m })
     }
-
 
 
 
@@ -548,7 +519,7 @@ async function setBio() {
 setBio();
 
 
-if (isCommand) {
+if (command) {
             
 if (!m.isGroup && !isCreator && global.onlygroup) {
     return m.reply("Hello, because we want to reduce spam, please use the bot in a group!\n\nIf there are joint interests, please type .owner to contact the owner.")
@@ -558,26 +529,32 @@ if (!isCreator && global.onlypc && m.isGroup) {
     return m.reply("Hello, if you want to use this bot, please chat privately with the bot.")
 }
 
-if (TYPING_ENABLED) {
-  // Execute code when REACODING is enabled
-  gss.sendPresenceUpdate('composing');
+        if (global.autoTyping) {
+    if (m.chat) {
+        gss.sendPresenceUpdate("composing", m.chat);
+    }
 }
 
-if (ALWAYS_ONLINE) {
+if (global.autoRecord) {
+    if (m.chat) {
+        gss.sendPresenceUpdate("recording", m.chat);
+    }
+}
+
+if (global.available) {
   gss.sendPresenceUpdate('available', m.chat);
 } else {
   gss.sendPresenceUpdate('unavailable', m.chat);
 }
 
-if (global.autoBlockEnabled && m.sender.startsWith('212')) {
+if (global.autoread) {
   
-    gss.updateBlockStatus(m.sender, 'block');
+  gss.readMessages([m.key]);
 }
 
-
-if (AUTO_READ_ENABLED && command) {
-  // Execute code when AUTO_READ is enabled
-  gss.readMessages([m.key]);
+if (global.autoBlock && m.sender.startsWith('212')) {
+  
+    gss.updateBlockStatus(m.sender, 'block');
 }
 }
    
@@ -853,19 +830,12 @@ const cmdOwner = ["React", "Chat", "Join", "Leave", "Block", "Unblock", "Bcgroup
 const cmdStalk = ["Nowa", "Truecaller", "InstaStalk", "GithubStalk"];
 
 
-function getRandomSymbol() {
-    const symbols = ['◉', '★', '◎', '✯','✯','✰','◬','✵','✦']; // Add more symbols as needed
-    const randomIndex = Math.floor(Math.random() * symbols.length);
-    return symbols[randomIndex];
-}
 
 function generateMenu(cmdList, title) {
     if (!Array.isArray(cmdList)) {
         console.error('Invalid cmdList. It should be an array.');
         return '';
     }
-
-    const randomSymbol = getRandomSymbol();
 
     const formattedCmdList = cmdList
     .sort((a, b) => a.localeCompare(b))
@@ -890,7 +860,7 @@ const introTextFun = generateMenu(cmdFun, '𝗙𝗨𝗡 𝗠𝗘𝗡𝗨');
 const introTextTool = generateMenu(cmdTool, '𝗧𝗢𝗢𝗟 𝗠𝗘𝗡𝗨');
 const introTextAi = generateMenu(cmdAi, '𝗔𝗜 𝗠𝗘𝗡𝗨');
 
-const menuText = `*ᴍᴇɴᴜ ʟɪsᴛ*
+const menuText = `*🔢 TYPE BELOW NUMBER*
 1. ᴄᴏɴᴠᴇʀᴛᴍᴇɴᴜ
 2. ᴅᴏᴡɴʟᴏᴀᴅᴍᴇɴᴜ
 3. ɢʀᴏᴜᴘᴍᴇɴᴜ
@@ -902,6 +872,13 @@ const menuText = `*ᴍᴇɴᴜ ʟɪsᴛ*
 9. ᴍᴀɪɴᴍᴇɴᴜ`;
 
 const menuMessage = `
+👨‍💻 GSSBOTWA - ＭＤ - Ｖ2 👨‍💻
+╭─────────────·
+│📍 ᴠᴇʀꜱɪᴏɴ: ᴠ2
+│👨‍💻 ᴏᴡɴᴇʀ : ᴇᴛʜɪx xsɪᴅ      
+│👤 ɴᴜᴍʙᴇʀ: 917050906659
+╰─────────────
+
 ╭───═❮ *ᴍᴇɴᴜ ʟɪsᴛ* ❯═───❖
 │╭─────────────···▸
 ${menuText.split('\n').map(item => `││▸ ${item.trim()}`).join('\n')}
@@ -920,12 +897,12 @@ const subMenus = {
 };
 
 
-if (m.text) {
-    const lowerText = m.text.toLowerCase();
+const lowerText = m.text.toLowerCase();
 
-    if (lowerText.includes('.menu2')) {
+if (command === 'menu') {
+    if (menuType === '1') {
         await gss.sendMessage(m.chat, {
-            image: { url: 'https://telegra.ph/file/022f5c3d9ce54c8ccf648.jpg' },
+            image: { url: 'https://telegra.ph/file/61eec5ebaeef2a046a914.jpg' },
             caption: menuMessage,
             contextInfo: {
                 externalAdReply: {
@@ -936,6 +913,11 @@ if (m.text) {
                 }
             }
         }, { quoted: m });
+    } else if (menuType === '2') {
+        if (isBan) return m.reply(mess.banned);
+        if (isBanChat) return m.reply(mess.bangc);
+        
+        await gss.sendPoll(m.chat, "List Menu", ['.Allmenu', '.Groupmenu', '.Downloadmenu', '.Searchmenu', '.Funmenu', '.Toolmenu', '.Convertmenu', '.aimenu', '.Mainmenu', '.Ownermenu'], { quoted: m });
     } else if (/^\d+$/.test(lowerText) && m.quoted) {
         const quotedText = m.quoted.text.toLowerCase();
 
@@ -945,123 +927,27 @@ if (m.text) {
 
             if (subMenu !== undefined) {
                 await gss.sendMessage(m.chat, {
-            image: { url: 'https://telegra.ph/file/022f5c3d9ce54c8ccf648.jpg' },
-            caption: subMenu,
-            contextInfo: {
-                externalAdReply: {
-                    showAdAttribution: false,
-                    title: botname,
-                    sourceUrl: global.link,
-                    body: `Bot Created By ${global.owner}`
-                }
-            }
-        }, { quoted: m });
-            } else {
-                await gss.sendMessage(m.chat, {text: 'Invalid menu number. Please select a number from the menu.'}, { quoted: m });
-            }
-        }
-    }
-}
-
-
-async function getYoutubeInfo(url) {
-    try {
-        const info = await ytdl.getInfo(url);
-        return info;
-    } catch (error) {
-        console.error('Error fetching video info:', error);
-        return null;
-    }
-}
-
-// Function to format video duration
-function formatDuration(duration) {
-    const hours = Math.floor(duration / 3600);
-    const minutes = Math.floor((duration % 3600) / 60);
-    const seconds = duration % 60;
-
-    return `${hours ? hours + 'h ' : ''}${minutes ? minutes + 'm ' : ''}${seconds}s`;
-}
-
-// Example usage within your message handling logic
-if (m.text) {
-    const lowerText = m.text.toLowerCase();
-
-    if (lowerText.includes('.ytdl')) {
-        // Fetching video information
-        const urls = m.text.match(/(https?:\/\/[^\s]+)/g);
-        if (urls && urls.length > 0) {
-            const videoUrl = urls[0]; // Assuming only one URL is provided
-            const info = await getYoutubeInfo(videoUrl);
-
-            if (info) {
-                const thumbnailUrl = info.videoDetails.thumbnail.thumbnails[0].url;
-                const videoDetails = info.videoDetails;
-
-                const captionMessage = `
-╭═══════════════════╮
-│ *Video Details*
-│
-│ *URL:* ${videoUrl}
-│ *Title:* ${videoDetails.title}
-│ *Views:* ${videoDetails.viewCount}
-│ *Duration:* ${formatDuration(videoDetails.lengthSeconds)}
-│ *Size:* ${formatBytes(videoDetails.lengthBytes)}
-│1. Download as Audio
-│2. Download as Video
-╰═══════════════════╯
-`;
-
-                await gss.sendMessage(m.chat, {
-                    image: { url: thumbnailUrl },
-                    caption: captionMessage,
+                    image: { url: 'https://telegra.ph/file/61eec5ebaeef2a046a914.jpg' },
+                    caption: subMenu,
                     contextInfo: {
                         externalAdReply: {
                             showAdAttribution: false,
-                            title: botname, // Assuming botname is a string
-                            sourceUrl: global.link, // Assuming global.link is a string
-                            body: '' // Assuming global.owner is a string
+                            title: botname,
+                            sourceUrl: global.link,
+                            body: `Bot Created By ${global.owner}`
                         }
                     }
                 }, { quoted: m });
-            }
-        } else {
-            await gss.sendMessage(m.chat, { text: 'No valid URL found in the message.' }, { quoted: m });
-        }
-    } else if (m.quoted && (lowerText === '1' || lowerText === '2')) {
-        const quotedText = m.quoted.text.toLowerCase();
-        const isAudioMenu = quotedText.includes('download as audio');
-        const isVideoMenu = quotedText.includes('download as video');
-
-        if (isAudioMenu && lowerText === '1') {
-            // Handle download as audio
-            const audioUrl = storedUrl; // Use stored URL
-            if (audioUrl) {
-                const audioStream = ytdl(audioUrl, { filter: 'audioonly' });
-                await gss.sendMessage(m.chat, { audio: audioStream }, { quoted: m });
             } else {
-                await gss.sendMessage(m.chat, { text: 'No valid audio URL found in the quoted message.' }, { quoted: m });
+                await gss.sendMessage(m.chat, { text: 'Invalid menu number. Please select a number from the menu.' }, { quoted: m });
             }
-        } else if (isVideoMenu && lowerText === '2') {
-            // Handle download as video
-            const videoUrl = storedUrl; // Use stored URL
-            if (videoUrl) {
-                const videoStream = ytdl(videoUrl, { filter: 'audioandvideo', quality: 'highest' });
-                await gss.sendMessage(m.chat, { video: videoStream }, { quoted: m });
-            } else {
-                await gss.sendMessage(m.chat, { text: 'No valid video URL found in the quoted message.' }, { quoted: m });
-            }
-        } else {
-            // Handle invalid selection
-            await gss.sendMessage(m.chat, { text: 'Invalid selection. Please select option 1 or 2 from the menu.' }, { quoted: m });
         }
     }
 }
 
 
-
 	    
-        switch(isCommand) {
+        switch(command) {
 	    case 'afk': {
 	      if (isBan) return m.reply(mess.banned);
         if (isBanChat) return m.reply(mess.bangc);
@@ -1075,7 +961,7 @@ if (m.text) {
             case 'rentbot': {
 if (isBan) return m.reply(mess.banned);
         if (isBanChat) return m.reply(mess.bangc);
-    rentfromxeon(gss, m, m.from, args);
+   gssrentbot(gss, m, m.from, args);
 }
 break;
             
@@ -2056,6 +1942,38 @@ case 'autosview':
                }
             }
             break
+            
+            case 'autoreact':
+    case 'react':{
+      if (isBan) return m.reply(mess.banned);
+        if (isBanChat) return m.reply(mess.bangc);
+        if (!isCreator) throw mess.owner;
+               if (args.length < 1) return m.reply('on/off?')
+               if (args[0] === 'on') {
+                  autoreact = true
+                  m.reply(`${command} is enabled`)
+               } else if (args[0] === 'off') {
+                  autoreact = false
+                  m.reply(`${command} is disabled`)
+               }
+            }
+            break
+            
+      
+    case 'autorecording':{
+      if (isBan) return m.reply(mess.banned);
+        if (isBanChat) return m.reply(mess.bangc);
+        if (!isCreator) throw mess.owner;
+               if (args.length < 1) return m.reply('on/off?')
+               if (args[0] === 'on') {
+                  global.autoRecord = true
+                  m.reply(`${command} is enabled`)
+               } else if (args[0] === 'off') {
+                  global.autoRecord = false
+                  m.reply(`${command} is disabled`)
+               }
+            }
+            break
 
 case 'q': case 'quoted': {
   if (isBan) return m.reply(mess.banned);
@@ -2257,48 +2175,6 @@ case 'get':
   break;
   
   
-    case 'send':
-case 'take':
-  if (isBan) return m.reply(mess.banned);
-        if (isBanChat) return m.reply(mess.bangc);
-  const quotedMessage = m.msg.contextInfo.quotedMessage;
-  let caption = null;
-
-  if (quotedMessage && (quotedMessage.imageMessage || quotedMessage.videoMessage)) {
-    let mediaMessage = quotedMessage.imageMessage || quotedMessage.videoMessage;
-
-    if (caption === null) {
-      caption = `${text}`;
-    }
-
-    let mediaUrl = await gss.downloadAndSaveMediaMessage(mediaMessage);
-    gss.sendMedia(m.chat, mediaUrl, 'file', caption, m);
-  }
-  break;
-
-  
-
-case 'updatenow':
-  if (isBan) return m.reply(mess.banned);
-        if (isBanChat) return m.reply(mess.bangc);
-  if (global.herokuConfig && global.herokuConfig.heroku) {
-    const DB = require('./lib');
-    try {
-      let commits = await DB.syncgit();
-      if (commits.total === 0) {
-        m.reply(`Hey ${m.pushName}. You have the latest version installed.`);
-      } else {
-        m.reply('Build Started...');
-        let update = await DB.updatedb();
-        m.reply(update);
-      }
-    } catch (error) {
-      console.error('Error updating database:', error);
-      m.reply('An error occurred while updating the database.');
-    }
-  }
-  break;
-
 
 case 'ebinary': {
   if (isBan) return m.reply(mess.banned);
@@ -4264,26 +4140,65 @@ case 'google': {
 }
 break;
 
-case 'gimage': {
-  if (isBan) return m.reply(mess.banned);
-        if (isBanChat) return m.reply(mess.bangc);
-  if (!text) throw `Example : ${prefix + command} kaori cicak`;
-  let gis = require('g-i-s');
-  gis(text, async (error, result) => {
-    n = result;
-    images = n[Math.floor(Math.random() * n.length)].url;
-    let Message = {
-      image: { url: images },
-      caption: `*-------「 GIMAGE SEARCH 」-------*
-🤠 *Query* : ${text}
-🔗 *Media Url* : ${images}`,
-    };
-    gss.sendMessage(m.chat, Message, { quoted: m });
-  });
+
+
+
+case 'img': case 'gimage':
+    if (!text && !(m.quoted && m.quoted.text)) {
+      throw `Please provide some text , Example usage ${prefix + commands} gssbotwa`;
+    }
+    if (!text && m.quoted && m.quoted.text) {
+      text = m.quoted.text;
+    }
+
+    const match = text.match(/(\d+)/);
+    const numberOfImages = match ? parseInt(match[1]) : 1;
+
+    try {
+      m.reply('*Please wait*');
+
+      const images = [];
+
+      for (let i = 0; i < numberOfImages; i++) {
+        const endpoint = `https://api.guruapi.tech/api/googleimage?text=${encodeURIComponent(text)}`;
+        const response = await fetch(endpoint);
+
+        if (response.ok) {
+          const imageBuffer = await response.buffer();
+          images.push(imageBuffer);
+        } else {
+          throw '*Image generation failed*';
+        }
+      }
+
+      for (let i = 0; i < images.length; i++) {
+        await gss.sendMedia(m.chat, images[i], `image_${i + 1}.png`, null, m);
+      }
+    } catch {
+      throw '*Oops! Something went wrong while generating images. Please try again later.*';
+    }
+    break;
+
+
+
+
+case 'shorturl': case 'tiny': case 'tinyurl': {
+    if (!args[0]) return m.reply('Please provide a URL to shorten.');
+
+    const apiUrl = `https://tinyurl.com/api-create.php?url=${args[0]}`;
+
+    axios.get(apiUrl)
+        .then(response => {
+            const shortenedUrl = response.data;
+            const messageToSend = `Shortened URL: ${shortenedUrl}`;
+            m.reply(messageToSend)
+        })
+        .catch(error => {
+            console.error('Error shortening URL:', error);
+            m.reply('Error shortening URL. Please try again later.');
+        });
 }
 break;
-
-
 
 
 case 'sticker': case 's': case 'stickergif': case 'sgif': {
@@ -4622,8 +4537,17 @@ case 'setmenu': {
         if (isBanChat) return m.reply(mess.bangc);
     if (!isCreator) return m.reply(mess.owner);
     if (!text) return m.reply('setmenu has 5 views');
+    typemenu = text;
+    m.reply(mess.success);
+}
+break;
 
-    process.env.TYPEMENU = text; // Set the environment variable
+case 'menutype': {
+  if (isBan) return m.reply(mess.banned);
+        if (isBanChat) return m.reply(mess.bangc);
+    if (!isCreator) return m.reply(mess.owner);
+    if (!text) return m.reply('menuType 1 for reply menu\nmenuType 2 for pollmenu');
+    menuType = text;
     m.reply(mess.success);
 }
 break;
@@ -4634,7 +4558,7 @@ case 'onlygroup': {
     if (!isCreator) return m.reply(mess.owner);
     if (!text) return m.reply('onlygroup true/false');
 
-    global.onlygroup = text === 'true'; // Update the global variable
+    gonlygroup = text === 'true'; 
     m.reply(mess.success);
 }
 break;
@@ -4645,7 +4569,7 @@ case 'onlypc': {
     if (!isCreator) return m.reply(mess.owner);
     if (!text) return m.reply('onlypc true/false');
 
-    global.onlypc = text === 'true'; // Update the global variable
+    onlypc = text === 'true';
     m.reply(mess.success);
 }
 break;
@@ -4742,32 +4666,6 @@ case 'attp3':
   }, {
     quoted: m
   });
-  break;
-
-case 'update':
-  if (isBan) return m.reply(mess.banned);
-        if (isBanChat) return m.reply(mess.bangc);
-  if (!isCreator) return m.reply('This command is only for my owner');
-  
-  try {
-    let commits = await DB.syncgit();
-
-    if (commits.total === 0) {
-      m.reply(`Hey ${m.pushName}. You have the latest version installed.`);
-    } else {
-      let update = await DB.sync();
-      let buttonMessaged = {
-        text: update,
-        footer: 'UPDATER',
-        headerType: 4
-      };
-      await gss.sendMessage(m.chat, buttonMessaged);
-    }
-  } catch (error) {
-    // Handle errors if necessary
-    console.error(error);
-    m.reply('An error occurred while processing the command.');
-  }
   break;
 
 
@@ -4976,12 +4874,10 @@ case 'report': {
 case 'autoread':
 if (!isCreator) throw mess.owner
   if (args[0] === 'on') {
-    AUTO_READ = true;
-    process.env.AUTO_READ = 'true';
+    global.autoread = true;
     m.reply('*Auto Read turned on.*');
   } else if (args[0] === 'off') {
-    AUTO_READ = false;
-    process.env.AUTO_READ = 'false';
+    global.autoread = false;
     m.reply('*Auto Read turned off.*');
   } else {
     gss.sendPoll(m.chat, "Please Choose, I Hope You're Happy!", [`${prefix + command.charAt(0).toUpperCase() + command.slice(1)} on`, `${prefix + command.charAt(0).toUpperCase() + command.slice(1)} off`]);
@@ -4992,12 +4888,10 @@ if (!isCreator) throw mess.owner
 case 'alwaysonline':
 if (!isCreator) throw mess.owner
   if (args[0] === 'on') {
-    ALWAYS_ONLINE = true;
-    process.env.ALWAYS_ONLINE = 'true';
+   global.available = true;
     m.reply('*Always Online turned on.*');
   } else if (args[0] === 'off') {
-    ALWAYS_ONLINE = false;
-    process.env.ALWAYS_ONLINE = 'false';
+    global.available = false;
     m.reply('Always Online turned off.');
   } else {
     gss.sendPoll(m.chat, "Please Choose, I Hope You're Happy!", [`${prefix + command.charAt(0).toUpperCase() + command.slice(1)} on`, `${prefix + command.charAt(0).toUpperCase() + command.slice(1)} off`]);
@@ -5008,20 +4902,16 @@ if (!isCreator) throw mess.owner
 case 'autotyping':
 if (!isCreator) throw mess.owner
   if (args[0] === 'on') {
-    TYPING_ENABLED = true;
-    process.env.AUTO_TYPING = 'true';
+    global.autoTyping = true;
     m.reply('*AUTO TYPING turned on.*');
   } else if (args[0] === 'off') {
-    TYPING_ENABLED = false;
-    process.env.AUTO_TYPING = 'false';
+    global.autoTyping = false;
     m.reply('*AUTO TYPING turned off.*');
   } else {
     gss.sendPoll(m.chat, "Please Choose, I Hope You're Happy!", [`${prefix + command.charAt(0).toUpperCase() + command.slice(1)} on`, `${prefix + command.charAt(0).toUpperCase() + command.slice(1)} off`]);
   }
   break;
   
-
-
 
 
   
@@ -5037,9 +4927,9 @@ if (!isAdmins) return m.reply('Tʜɪs ꜰᴇᴀᴛᴜʀᴇ ɪs ᴏɴʟʏ ꜰᴏ�
 case 'setting':
 if (!isCreator) throw mess.owner
   m.reply(`Current Settings:
-    Auto Read: ${AUTO_READ ? 'On' : 'Off'}
-    Always Online: ${ALWAYS_ONLINE ? 'On' : 'Off'}
-    Auto Typing: ${TYPING_ENABLED ? 'On' : 'Off'}`);
+    Auto Read: ${autoread ? 'On' : 'Off'}
+    Always Online: ${available ? 'On' : 'Off'}
+    Auto Typing: ${autoTyping ? 'On' : 'Off'}`);
 
   // Delay for 2 seconds
   setTimeout(() => {
@@ -5671,16 +5561,6 @@ case 'bass': case 'blown': case 'deep': case 'earrape': case 'fast': case 'fat':
 
 
             
-            case 'menu':
-case 'help':
-case 'list':
-case 'listmenu':
-{
-  if (isBan) return m.reply(mess.banned);
-        if (isBanChat) return m.reply(mess.bangc);
-    gss.sendPoll(m.chat, "List Menu", ['.Allmenu', '.Groupmenu', '.Downloadmenu', '.Searchmenu', '.Funmenu', '.Toolmenu', '.Convertmenu', '.aimenu', '.Mainmenu', '.Ownermenu'], { quoted: m });
-}
-break;
 
 function getRandomSymbol() {
     const symbols = ['◉', '★', '◎', '✯','✯','✰','◬','✵','✦']; // Add more symbols as needed
