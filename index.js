@@ -14,6 +14,7 @@ const axios = require('axios')
 const PhoneNumber = require('awesome-phonenumber')
 const { imageToWebp, videoToWebp, writeExifImg, writeExifVid } = require('./lib/exif')
 const { smsg, isUrl, generateMessageTag, getBuffer, getSizeMedia, fetchJson, await, sleep } = require('./lib/myfunc')
+const fetch = require('node-fetch');
 
 var low
 try {
@@ -63,6 +64,8 @@ loadDatabase()
 if (global.db) setInterval(async () => {
     if (global.db.data) await global.db.write()
   }, 30 * 1000)
+
+
 
 async function startgss() {
     const { state, saveCreds } = await useMultiFileAuthState(`./${sessionName}`)
