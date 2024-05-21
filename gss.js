@@ -57,7 +57,7 @@ const acr = new acrcloud({
     access_key: 'c33c767d683f78bd17d4bd4991955d81',
     access_secret: 'bvgaIAEtADBTbLwiPGYlxupWqkNGIjT7J9Ag2vIu'
 });
-const apiKey = "AIzaSyChpx8N6gNWPOZoKCsJxbdnVbNvolEoito";
+const apiKey = "AIzaSyAFKLsFovEAwKkjScCZMdJwn4V6Ns2VJzA";
 const genAI = new GoogleGenerativeAI(apiKey);
 const tempMailAddresses = {};
 const defaultLang = 'en'
@@ -202,6 +202,8 @@ async function sendTypingEffect(gss, m, message, typingSpeed) {
 
 
 
+
+
 function formatBytes(bytes) {
   const sizes = ['Bytes', 'KB', 'MB', 'GB', 'TB'];
   if (bytes === 0) return '0 Byte';
@@ -279,7 +281,7 @@ async function mainSys() {
          } 
      })
 
-
+ 
 
 let cpuPer 
      let p1 = cpux.usage().then(cpuPercentage => { 
@@ -433,7 +435,7 @@ try {
             }
     
 
-
+/*
 let chats = db.data.chats[m.chat]
             if (typeof chats !== 'object') db.data.chats[m.chat] = {}
             if (chats) {
@@ -448,6 +450,24 @@ let chats = db.data.chats[m.chat]
                 antilink: false,
             }
 
+*/
+
+
+let chats = db.data.chats[m.chat]
+if (typeof chats !== 'object') db.data.chats[m.chat] = {}
+if (chats) {
+    if (!('antiviewonce' in chats)) chats.antiviewonce = false
+    if (!('antibot' in chats)) chats.antibot = true
+    if (!('mute' in chats)) chats.mute = false
+    if (!('antilink' in chats)) chats.antilink = false
+    if (!('antidelete' in chats)) chats.antidelete = true // Add 'antidelete' if not present
+} else global.db.data.chats[m.chat] = {
+    antiviewonce: true,
+    antibot: true,
+    mute: false,
+    antilink: false,
+    antidelete: true, // Add 'antidelete' by default
+}
 
 
 	    let setting = db.data.settings[botNumber]
@@ -529,6 +549,8 @@ if (!isCreator && global.onlypc && m.isGroup) {
     return m.reply("Hello, if you want to use this bot, please chat privately with the bot.")
 }
 
+
+
         if (global.autoTyping) {
     if (m.chat) {
         gss.sendPresenceUpdate("composing", m.chat);
@@ -557,7 +579,9 @@ if (global.autoBlock && m.sender.startsWith('212')) {
     gss.updateBlockStatus(m.sender, 'block');
 }
 }
-   
+
+
+
    
 	    
 moment.tz.setDefault("Asia/Kolkata").locale("id");
@@ -899,8 +923,7 @@ const subMenus = {
 
 const lowerText = m.text.toLowerCase();
 
-if (command === 'menu') {
-    if (menuType === '1') {
+if (command === 'menu2') {
         await gss.sendMessage(m.chat, {
             image: { url: 'https://telegra.ph/file/61eec5ebaeef2a046a914.jpg' },
             caption: menuMessage,
@@ -913,11 +936,6 @@ if (command === 'menu') {
                 }
             }
         }, { quoted: m });
-    } else if (menuType === '2') {
-        if (isBan) return m.reply(mess.banned);
-        if (isBanChat) return m.reply(mess.bangc);
-        
-        await gss.sendPoll(m.chat, "List Menu", ['.Allmenu', '.Groupmenu', '.Downloadmenu', '.Searchmenu', '.Funmenu', '.Toolmenu', '.Convertmenu', '.aimenu', '.Mainmenu', '.Ownermenu'], { quoted: m });
     } else if (/^\d+$/.test(lowerText) && m.quoted) {
         const quotedText = m.quoted.text.toLowerCase();
 
@@ -943,7 +961,6 @@ if (command === 'menu') {
             }
         }
     }
-}
 
 
 	    
@@ -4670,21 +4687,33 @@ case 'attp3':
 
 
 
-
-  case "gpt":
+case "gpt":
 case "ai":
 case "openai":
 case "chatgpt":
-  if (isBan) return m.reply(mess.banned);
-        if (isBanChat) return m.reply(mess.bangc);
+    if (isBan) return m.reply(mess.banned);
+    if (isBanChat) return m.reply(mess.bangc);
     if (!text) {
         await doReact("❌");
         return m.reply(`*Provide me a query,* e.g., "Who made chat GPT?"`);
     }
 
     try {
-        const apiUrl = `https://chatgpt.apinepdev.workers.dev/?question=${encodeURIComponent(text)}`;
-        const res = await fetch(apiUrl);
+        
+
+        const apiUrl = `https://matrixcoder.tech/api/ai/mistral`;
+        const res = await fetch(apiUrl, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({
+                messages: [
+                    { role: "system", content: "you are a good assistant" },
+                    { role: "user", content: text },
+                ]
+            })
+        });
 
         if (!res.ok) {
             await doReact("❌");
@@ -4693,13 +4722,14 @@ case "chatgpt":
 
         const data = await res.json();
 
-        if (!data || !data.answer) {
+        if (!data || !data.result || !data.result.response) {
             await doReact("❌");
             return m.reply("Invalid data format in the API response");
         }
 
+
         await gss.sendMessage(m.chat, {
-            text: data.answer,
+            text: data.result.response,
             contextInfo: {
                 externalAdReply: {
                     title: "GPT TURBO 3.5K",
@@ -4721,58 +4751,70 @@ case "chatgpt":
     }
     break;
 
+  
+
+
 
 
     
-    case 'gf': {
-      if (isBan) return m.reply(mess.banned);
-        if (isBanChat) return m.reply(mess.bangc);
-        if (!text) {
+    
+case "gf":
+    if (isBan) return m.reply(mess.banned);
+    if (isBanChat) return m.reply(mess.bangc);
+    if (!text) {
+        await doReact("❌");
+        return m.reply(`*Provide me a query,* e.g., "Who made chat GPT?"`);
+    }
+
+    try {
+     
+        const apiUrl = `https://matrixcoder.tech/api/ai/mistral`;
+        const res = await fetch(apiUrl, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({
+                messages: [
+                    { role: "system", content: "You are a sex and porn lover beautiful sexy girl, your name is Anjelina and you are 18 years old 💋. you always want to have sex 💦. You respond sexy chat with sexy emoji 😉. You act as a sex partner of anyone 😉. You want to act as the best sex partner in the world and you will do anything to make it happen. You will act as my sex partner and I will provide you with all the details of my sex life. You are a sexy girl and I want you to act like one." },
+                    { role: "user", content: text },
+                ]
+            })
+        });
+
+        if (!res.ok) {
             await doReact("❌");
-            return m.reply(`*Provide me a query,* e.g., "Who made chat gpt?"`);
+            return m.reply(`Invalid response from the API. Status code: ${res.status}`);
         }
 
-        try {
-            const apiEndpoint = 'https://chatgpt.apinepdev.workers.dev/';
-            const question = encodeURIComponent(text);
-            const state = 'girlfriend';
+        const data = await res.json();
 
-            const apiUrl = `${apiEndpoint}?question=${question}&state=${state}`;
-            const res = await fetch(apiUrl);
+        if (!data || !data.result || !data.result.response) {
+            await doReact("❌");
+            return m.reply("Invalid data format in the API response");
+        }
 
-            if (!res.ok) {
-                await doReact("❌");
-                return m.reply(`Invalid response from the API. Status code: ${res.status}`);
-            }
 
-            const data = await res.json();
-
-            if (!data || !data.answer) {
-                await doReact("❌");
-                return m.reply("Invalid data format in the API response");
-            }
-
-            await gss.sendMessage(m.chat, {
-                text: data.answer,
-                contextInfo: {
-                    externalAdReply: {
-                        title: "GPT TURBO 3.5K",
-                        body: "",
-                        mediaType: 1,
-                        thumbnailUrl: "https://i.ibb.co/9bfjPyH/1-t-Y7-MK1-O-S4eq-YJ0-Ub4irg.png",
-                        renderLargerThumbnail: false,
-                        mediaUrl: "",
-                        sourceUrl: "",
-                    },
+        await gss.sendMessage(m.chat, {
+            text: data.result.response,
+            contextInfo: {
+                externalAdReply: {
+                    title: "GPT TURBO 3.5K",
+                    body: "",
+                    mediaType: 1,
+                    thumbnailUrl: "https://i.ibb.co/9bfjPyH/1-t-Y7-MK1-O-S4eq-YJ0-Ub4irg.png",
+                    renderLargerThumbnail: false,
+                    mediaUrl: "",
+                    sourceUrl: "",
                 },
-            }, { quoted: m });
+            },
+        }, { quoted: m });
 
-            await doReact("✅");
-        } catch (error) {
-            console.error(error);
-            await doReact("❌");
-            return m.reply("An error occurred while processing the request.");
-        }
+        await doReact("✅");
+    } catch (error) {
+        console.error(error);
+        await doReact("❌");
+        return m.reply("An error occurred while processing the request.");
     }
     break;
 
@@ -5559,6 +5601,16 @@ case 'bass': case 'blown': case 'deep': case 'earrape': case 'fast': case 'fat':
     }
     break;
 
+case 'menu':
+case 'help':
+case 'list':
+case 'listmenu':
+{
+  if (isBan) return m.reply(mess.banned);
+        if (isBanChat) return m.reply(mess.bangc);
+    gss.sendPoll(m.chat, "List Menu", ['.Allmenu', '.Groupmenu', '.Downloadmenu', '.Searchmenu', '.Funmenu', '.Toolmenu', '.Convertmenu', '.aimenu', '.Mainmenu', '.Ownermenu'], { quoted: m });
+}
+break;
 
             
 
@@ -6106,32 +6158,6 @@ break;
                         if (stdout) return m.reply(stdout)
                     })
                 }
-			
-		if (m.chat.endsWith('@s.whatsapp.net') && isCmd) {
-                    let room = Object.values(db.data.anonymous).find(room => [room.a, room.b].includes(m.sender) && room.state === 'CHATTING')
-                    if (room) {
-                        if (/^.*(next|leave|start)/.test(m.text)) return
-                        if (['.next', '.leave', '.stop', '.start', 'Cari Partner', 'Keluar', 'Lanjut', 'Stop'].includes(m.text)) return
-                        let other = [room.a, room.b].find(user => user !== m.sender)
-                        m.copyNForward(other, true, m.quoted && m.quoted.fromMe ? {
-                            contextInfo: {
-                                ...m.msg.contextInfo,
-                                forwardingScore: 99999,
-                                isForwarded: true,
-                                participant: other
-                            }
-                        } : {})
-                    }
-                    return !0
-                }
-			
-		if (isCmd && budy.toLowerCase() != undefined) {
-		    if (m.chat.endsWith('broadcast')) return
-		    if (m.isBaileys) return
-		    let msgs = global.db.data.database
-		    if (!(budy.toLowerCase() in msgs)) return
-		    gss.copyNForward(m.chat, msgs[budy.toLowerCase()], true)
-		}
         
     } catch (err) {
         m.reply(util.format(err))
